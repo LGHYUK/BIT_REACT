@@ -47,3 +47,38 @@ export default defineConfig(({ mode }) => {
     assetsInclude: ['**/*.svg', '**/*.csv'],
   };
 });
+// 서버로 수정 시 아래 코드로 변경
+/* 
+import { defineConfig } from 'vite'
+import path from 'path'
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+
+function figmaAssetResolver() {
+  return {
+    name: 'figma-asset-resolver',
+    resolveId(id: string) {
+      if (id.startsWith('figma:asset/')) {
+        const filename = id.replace('figma:asset/', '')
+        return path.resolve(__dirname, 'src/assets', filename)
+      }
+    },
+  }
+}
+
+export default defineConfig(() => {
+  return {
+    plugins: [
+      figmaAssetResolver(),
+      react(),
+      tailwindcss(),
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
+    },
+    // server.proxy 설정 삭제
+    assetsInclude: ['**/*.svg', '**/*.csv'],
+  };
+}); */

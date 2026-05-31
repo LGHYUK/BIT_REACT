@@ -11,13 +11,6 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 // 음성 비서의 4가지 상태를 정의
 export type VoiceStatus = "idle" | "listening" | "loading" | "result";
 
-// ✅ 나중에 API 연동 시 이 목 데이터는 전역 상수 파일로 옮겨야 함.
-const MOCK_BUSES = [
-  { id: "r1", busNumber: "146", direction: "삼성역방면", arrivalMin: 2, currentStop: "삼성역" },
-  { id: "r2", busNumber: "341", direction: "역삼역방면", arrivalMin: 5, currentStop: "역삼역" },
-  { id: "r3", busNumber: "360", direction: "교대역방면", arrivalMin: 8, currentStop: "교대역" },
-];
-
 export function VoiceAssistant() {
   // 현재 상태, 인식된 텍스트, 목적지를 상태로 관리
   const [status, setStatus] = useState<VoiceStatus>("idle"); // 기본 상태 = IDLE
@@ -49,7 +42,6 @@ export function VoiceAssistant() {
       {status === "result" ? (
         <VoiceResult 
           destination={destination} 
-          buses={MOCK_BUSES} 
           onReset={handleReset} 
           onGoHome={handleGoHome} 
         />
