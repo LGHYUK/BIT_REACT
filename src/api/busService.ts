@@ -1,7 +1,6 @@
 import type { BusOption, BusCongetion } from "../types/bus";
 
-// 서버로 가져올 시 상수로 서버 주소 설정
-// const EC2_SERVER_URL = "http://[EC2_PUBLIC_IP]:8000";
+const EC2_SERVER_URL = "http://52.14.242.174:8000";
 
 interface StationItem {
   busRouteId: string; rtNm: string;
@@ -38,10 +37,10 @@ function parseRemainingStops(arrmsg: string): number {
 }
 
 export async function getArrivalsByStation(arsId: string): Promise<BusOption[]> {
-  // 기존은 서버 주소 변경해야함
-  const url = `/api/station/getStationByUid?arsId=${arsId}&resultType=json`; //const url = `${EC2_SERVER_URL}/api/station/getStationByUid?arsId=${arsId}&resultType=json`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(5000) }); //const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  const url = `${EC2_SERVER_URL}/api/station/getStationByUid?arsId=${arsId}&resultType=json`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`HTTP 오류: ${res.status}`);
 
   const data: ApiResponse = await res.json();
