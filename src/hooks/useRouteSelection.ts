@@ -13,19 +13,17 @@ export function useRouteSelection(destination: string, buses: BusOption[]) {
     setSelectedBus(bus);    // 선택된 버스 업데이트
     setLoading(true);       // 로딩 시작
     
-    // API 시뮬레이션 (가짜 데이터를 통한 표시)
-    setTimeout(() => {
+    // 백엔드 파이프라인(ODsay + 공공데이터) 실물 데이터를 직접 바인딩합니다.
+    if (bus) {
       setRouteDetail({
         busNumber: bus.busNumber,
-        totalMin: 25,
-        steps: [
-          { type: "walk", durationMin: 5, description: "정류장까지 걷기" },
-          { type: "bus", durationMin: 15, busNumber: bus.busNumber, fromStop: "현재 정류장", toStop: `${destination} 정류장` },
-          { type: "walk", durationMin: 5, description: "목적지까지 걷기" },
-        ]
+        // odsay_service.py에서 계산되어 백엔드가 넘겨준 전체 소요 시간 (데이터가 없으면 기본값 25분)
+        totalMin: (bus as any).totalMin || 25, 
+        // odsay_service.py 기반으로 response_builder.py가 조립한 단계별 상세 이동 경로 배열
+        steps: (bus as any).steps || []
       });
-      setLoading(false);
-    }, 500);
+    }
+    setLoading(false);
   };
 
   // 컴포넌트가 처음 켜지거나 버스 목록이 바뀔 때 첫 번째 버스를 자동 선택

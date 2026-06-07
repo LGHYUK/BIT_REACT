@@ -47,7 +47,9 @@ export default defineConfig(({ mode }) => {
     assetsInclude: ['**/*.svg', '**/*.csv'],
   };
 });
+
 // 서버로 수정 시 아래 코드로 변경
+
 /* 
 import { defineConfig } from 'vite'
 import path from 'path'
@@ -79,6 +81,6 @@ export default defineConfig(() => {
       },
     },
     // server.proxy 설정 삭제
-    assetsInclude: ['**/*.svg', '**/*.csv'],
+    assetsInclude: ['***.svg', '***.csv'], // **뒤에 /넣어야함.
   };
 }); */

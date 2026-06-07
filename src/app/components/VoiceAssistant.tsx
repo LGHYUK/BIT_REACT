@@ -1,40 +1,50 @@
 // 화면의 상태를 결정하고 컴포넌트를 전환하는 컨트롤러
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VoiceMicButton } from "./VoiceMicButton";
 import { VoiceIdle } from "./VoiceIdle";
-import { VoiceRecording } from "./VoiceRecording";
+import { VoiceRecording, useVoiceRecorder } from "./VoiceRecording";
 import { VoiceLoading } from "./VoiceLoading";
-import { VoiceResult } from "./VoiceResult"; // ✅ VoiceResult 폴더의 index.tsx를 자동으로 부릅니다.
+import { VoiceResult } from "./VoiceResult"; 
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 // 음성 비서의 4가지 상태를 정의
 export type VoiceStatus = "idle" | "listening" | "loading" | "result";
 
 export function VoiceAssistant() {
+  // 훅에서 제공하는 로직들을 가져옵니다.
+  const { status: hookStatus, transcript, audioChunks, startRecording, stopRecording } = useVoiceRecorder();
+  
   // 현재 상태, 인식된 텍스트, 목적지를 상태로 관리
-  const [status, setStatus] = useState<VoiceStatus>("idle"); // 기본 상태 = IDLE
-  const [transcript, setTranscript] = useState("");
+  const [status, setStatus] = useState<VoiceStatus>("idle"); 
   const [destination, setDestination] = useState("");
 
-  // 마이크 버튼을 처음 눌렀을 때 (인식 시작)
-  const handleStart = () => { 
-    setStatus("listening"); // listening 상태 전환
-    setTranscript("듣고 있습니다..."); 
-  };
-  // 마이크 버튼을 다시 눌렀을 때 (인식 종료 및 경로 탐색)
-  const handleStop = () => { 
-    setStatus("loading"); // Loading 상태 전환
-    // 2초 뒤 결과를 보여주는 시뮬레이션 로직 (실제 적용 시 응답 수신까지 대기로 나중에 수정)
-    setTimeout(() => { setStatus("result"); setDestination("강남역"); }, 2000); 
+  // 녹음 훅의 상태 변화에 따라 화면 상태 동기화
+  useEffect(() => {
+    if (hookStatus === "loading") {
+      setStatus("loading");
+      // 2초 뒤 결과를 보여주는 시뮬레이션 로직
+      const timer = setTimeout(() => { setStatus("result"); setDestination("강남역"); }, 2000); 
+      return () => clearTimeout(timer);
+    } else {
+      setStatus(hookStatus as VoiceStatus);
+    }
+  }, [hookStatus]);
+
+  // 마이크 버튼 핸들러 (시작/종료)
+  const handleToggle = () => {
+    if (status === "idle") {
+      startRecording();
+    } else if (status === "listening") {
+      stopRecording();
+    }
   };
 
-  // '다시 말하기' 버튼 클릭 시 리셋 (VoiceResult/index.tsx)
-  const handleReset = () => { setStatus("listening"); setTranscript("듣고 있습니다..."); setDestination(""); };
-  // '처음으로' 버튼 클릭 시 초기화 (VoiceResult/index.tsx)
-  const handleGoHome = () => { setStatus("idle"); setTranscript(""); setDestination(""); };
-
+  // '다시 말하기' 버튼 클릭 시 리셋
+  const handleReset = () => { startRecording(); };
   
+  // '처음으로' 버튼 클릭 시 초기화
+  const handleGoHome = () => { setStatus("idle"); setDestination(""); };
 
   return (
     <div className="w-full h-full relative overflow-hidden font-['Noto_Sans_KR']" style={{ background: "#1A66CC" }}>
@@ -42,6 +52,7 @@ export function VoiceAssistant() {
       {status === "result" ? (
         <VoiceResult 
           destination={destination} 
+          audioChunks={audioChunks}
           onReset={handleReset} 
           onGoHome={handleGoHome} 
         />
@@ -64,7 +75,7 @@ export function VoiceAssistant() {
             </div>
             {/* 중단: 애니메이션 마이크 버튼 */}
             <div className="py-4 overflow-visible">
-              <VoiceMicButton status={status} onClick={status === "idle" ? handleStart : handleStop} />
+              <VoiceMicButton status={status} onClick={handleToggle} />
             </div>
             {/* 하단: 예시 문구, 인식 중인 텍스트, 로딩바 */}
             <div className="h-24 flex items-start justify-center">
