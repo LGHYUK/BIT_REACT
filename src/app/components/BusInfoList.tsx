@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { BusOption as BusInfo } from "../../types/bus";
-import { getArrivalsByStation, getCongestionLabel, getCongestionColor } from "../../api/busService";
+import { getDefaultArrivals, getCongestionLabel, getCongestionColor } from "../../api/busService";
 
-const STATION_ID   = import.meta.env.VITE_STATION_ID   ?? "";
 const STATION_NAME = import.meta.env.VITE_STATION_NAME ?? "정류장";
 
 const SOON_SEC    = 3 * 60; // 잠시 후 도착 기준: 180초 미만
@@ -129,14 +128,16 @@ function useLiveClock() {
 // ─── 실시간 도착 정보 훅 ─────────────────────────────────────
 function useBusArrivals() {
   const [buses, setBuses]             = useState<BusInfo[]>([]);
+  const [liveStationName, setLiveStationName] = useState<string>("");
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const data = await getArrivalsByStation(STATION_ID);
+      const { stationName, buses: data } = await getDefaultArrivals();
       setBuses(data);
+      setLiveStationName(stationName); // 가져온 실시간 서버 정류소 이름을 저장
       setError(null);
       setLastUpdated(new Date());
     } catch (err) {
@@ -152,7 +153,7 @@ function useBusArrivals() {
     return () => clearInterval(id);
   }, [fetchData]);
 
-  return { buses, loading, error, lastUpdated, refetch: fetchData };
+  return { buses, liveStationName, loading, error, lastUpdated, refetch: fetchData };
 }
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────
@@ -160,7 +161,7 @@ export function BusInfoList() {
   const [mainPage, setMainPage] = useState(0);
   const [soonPage, setSoonPage] = useState(0);
   const now = useLiveClock();
-  const { buses, loading, error, lastUpdated, refetch } = useBusArrivals();
+  const { buses, liveStationName, loading, error, lastUpdated, refetch } = useBusArrivals();
 
   const arrivingSoon   = buses.filter((b) => b.traTimeSec < SOON_SEC);
   const soonTotalPages = Math.max(1, Math.ceil(arrivingSoon.length / SOON_PER_PAGE));
@@ -201,7 +202,8 @@ export function BusInfoList() {
       <div className="bg-[#1C1F26] border-b-4 border-[#374151] px-6 py-4 flex items-center justify-between shrink-0">
         <div className="flex flex-col text-left">
           <span className="text-[14px] text-blue-400 font-bold mb-0.5">서울특별시</span>
-          <span className="text-[34px] font-black text-white leading-tight">{STATION_NAME}</span>
+          {/* 버스 정류장 이름 리턴 */}
+          <span className="text-[34px] font-black text-white leading-tight">{liveStationName || STATION_NAME}</span>
         </div>
         <div className="text-right text-white">
           <div className="text-[14px] text-gray-400 mb-1">{yy}년 {mm}월 {dd}일 ({day})</div>
@@ -301,7 +303,7 @@ export function BusInfoList() {
                         </div>
                         <div className="flex flex-col min-w-0">
                           <span className="text-[20px] font-black text-[#1E293B] truncate leading-tight">
-                            {bus.currentStationName || "위치 정보 없음"}
+                            {bus.currentStationName}
                           </span>
                           <StopsDot remaining={bus.remainingStops} />
                           {bus.isLastBus && (

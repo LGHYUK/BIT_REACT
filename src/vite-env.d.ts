@@ -4,7 +4,7 @@ declare module "*.css" {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_BUS_SERVICE_KEY: string;
+  readonly VITE_API_BASE_URL: string;
   readonly VITE_STATION_ID: string;
   readonly VITE_STATION_NAME: string;
 }

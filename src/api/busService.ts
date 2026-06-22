@@ -1,28 +1,39 @@
 import type { BusOption, BusCongetion } from "../types/bus";
 
-const EC2_SERVER_URL = "http://52.14.242.174:8000";
+const EC2_SERVER_URL = import.meta.env['VITE_API_BASE_URL'] || "http://3.144.238.75:8000";
 
-interface StationItem {
-  busRouteId: string; rtNm: string;
-  vehId1: string;  traTime1: string;  busType1: string;
-  isLast1: string; isFullFlag1: string; congestion1: string;
-  arrmsg1: string; stationNm1: string;
-  vehId2: string;  traTime2: string;  busType2: string;
-  isLast2: string; isFullFlag2: string; congestion2: string;
-  arrmsg2: string; stationNm2: string;
+// ─── 기본 전광판(/api/bus/default) 전용 인터페이스 ───
+interface DefaultBackendItem {
+  bus_number: string;
+  direction: string;
+  first_arrival_min: number;
+  second_arrival_min: number;
+  message: string;
+  raw_arrmsg1: string;
+  raw_arrmsg2: string;
+  raw_congestion1: string;
+  raw_congestion2: string;
+  raw_is_last1: string;
+  raw_is_last2: string;
+  raw_bus_type1: string;
+  raw_bus_type2: string;
+  raw_is_full_flag1: string;
+  raw_is_full_flag2: string;
+  raw_station_nm1: string;
+  raw_station_nm2: string;
 }
 
-interface ApiHeader { headerCd: string; headerMsg: string; }
-interface ApiBody   { itemList?: StationItem | StationItem[]; }
-interface ApiResponse { comMsgHeader: object; msgHeader: ApiHeader; msgBody: ApiBody; }
+interface DefaultApiResponse {
+  success: boolean;
+  station_name: string;
+  station_id: string;
+  items: DefaultBackendItem[];
+  message: string;
+}
 
-const ERROR_MESSAGES: Record<string, string> = {
-  "1": "시스템 오류가 발생했습니다.", "2": "잘못된 요청입니다.",
-  "3": "정류소를 찾을 수 없습니다.", "4": "노선을 찾을 수 없습니다.",
-  "6": "실시간 정보를 읽을 수 없습니다.", "7": "인증키 오류입니다.",
-  "8": "운행이 종료되었습니다.",
-};
-
+/**
+ * 혼잡도 수치 변환 헬퍼 함수
+ */
 function toCongestion(val: string): BusCongetion {
   const n = parseInt(val, 10);
   if (n === 4) return 4;
@@ -30,71 +41,102 @@ function toCongestion(val: string): BusCongetion {
   return 3;
 }
 
+/**
+ * 문자열에서 남은 정류장 수 파싱
+ */
 function parseRemainingStops(arrmsg: string): number {
+  if (!arrmsg) return -1;
   if (arrmsg.includes("곧 도착")) return 0;
   const match = arrmsg.match(/\[(\d+)번째 전\]/);
   return match ? parseInt(match[1], 10) : -1;
 }
 
-export async function getArrivalsByStation(arsId: string): Promise<BusOption[]> {
+/**
+ * 경기 버스 노선 번호 뒤의 한글 지역명 제거 정규식
+ */
+function cleanBusNumber(name: string): string {
+  if (!name) return "";
+  return name.replace(/[가-힣]/g, "").trim();
+}
 
-  const url = `${EC2_SERVER_URL}/api/station/getStationByUid?arsId=${arsId}&resultType=json`;
+/**
+ * 📺 메인 화면 상시 표시 기본 버스 정보 조회 (Default 전용)
+ */
+export async function getDefaultArrivals(): Promise<{ stationName: string; buses: BusOption[] }> {
+  const url = `${EC2_SERVER_URL}/api/bus/default`;
 
   const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`HTTP 오류: ${res.status}`);
 
-  const data: ApiResponse = await res.json();
-  const header = data?.msgHeader;
-  if (!header) throw new Error("API 응답 형식이 올바르지 않습니다.");
-  if (header.headerCd !== "0") throw new Error(ERROR_MESSAGES[header.headerCd] ?? header.headerMsg);
+  const data: DefaultApiResponse = await res.json();
+  if (!data.success) throw new Error(data.message || "기본 버스 정보를 가져오는데 실패했습니다.");
 
-  const raw = data?.msgBody?.itemList;
-  if (!raw) return [];
-
-  const items: StationItem[] = Array.isArray(raw) ? raw : [raw];
+  const stationName = data.station_name || "정류장";
+  const items = data.items || [];
   const result: BusOption[] = [];
 
   items.forEach((item) => {
-    const t1 = parseInt(item.traTime1);
-    const t2 = parseInt(item.traTime2);
+    const cleanNum = cleanBusNumber(item.bus_number);
 
-    if (item.vehId1 !== "0" && t1 > 0) {
+    // 1번째 도착 예정 버스 객체화
+    if (item.first_arrival_min >= 0) {
       result.push({
-        id: `${item.busRouteId}-1`,
-        busNumber: item.rtNm,
-        arrivalMin: Math.ceil(t1 / 60),
-        traTimeSec: t1,
-        arrivalMsg: item.arrmsg1,
-        currentStationName: item.stationNm1?.trim() || "",
-        remainingStops: parseRemainingStops(item.arrmsg1),
-        busType: parseInt(item.busType1),
-        congetion: toCongestion(item.congestion1),
-        isFullFlag: item.isFullFlag1 === "1",
-        isLastBus: item.isLast1 === "1",
-        plainNo: "", isSecond: false,
+        id: `${item.bus_number}-1`,
+        busNumber: cleanNum, 
+        arrivalMin: item.first_arrival_min,
+        traTimeSec: item.first_arrival_min * 60, 
+        arrivalMsg: item.raw_arrmsg1 || `${item.first_arrival_min}분 후 도착`,
+        currentStationName: item.raw_station_nm1?.trim() || "",
+        remainingStops: parseRemainingStops(item.raw_arrmsg1),
+        busType: parseInt(item.raw_bus_type1 || "0", 10),
+        congetion: toCongestion(item.raw_congestion1),
+        isFullFlag: item.raw_is_full_flag1 === "1",
+        isLastBus: item.raw_is_last1 === "1",
+        plainNo: "",
+        isSecond: false,
       });
     }
-    if (item.vehId2 !== "0" && t2 > 0) {
+
+    // 2번째 도착 예정 버스 객체화
+    if (item.second_arrival_min >= 0) {
       result.push({
-        id: `${item.busRouteId}-2`,
-        busNumber: item.rtNm,
-        arrivalMin: Math.ceil(t2 / 60),
-        traTimeSec: t2,
-        arrivalMsg: item.arrmsg2,
-        currentStationName: item.stationNm2?.trim() || "",
-        remainingStops: parseRemainingStops(item.arrmsg2),
-        busType: parseInt(item.busType2),
-        congetion: toCongestion(item.congestion2),
-        isFullFlag: item.isFullFlag2 === "1",
-        isLastBus: item.isLast2 === "1",
-        plainNo: "", isSecond: true,
+        id: `${item.bus_number}-2`,
+        busNumber: cleanNum, 
+        arrivalMin: item.second_arrival_min,
+        traTimeSec: item.second_arrival_min * 60,
+        arrivalMsg: item.raw_arrmsg2 || `${item.second_arrival_min}분 후 도착`,
+        currentStationName: item.raw_station_nm2?.trim() || "",
+        remainingStops: parseRemainingStops(item.raw_arrmsg2),
+        busType: parseInt(item.raw_bus_type2 || "0", 10),
+        congetion: toCongestion(item.raw_congestion2),
+        isFullFlag: item.raw_is_full_flag2 === "1",
+        isLastBus: item.raw_is_last2 === "1",
+        plainNo: "",
+        isSecond: true,
       });
     }
   });
 
-  return result.sort((a, b) => a.traTimeSec - b.traTimeSec);
+  // 1. 남은 시간순 오름차순 정렬
+  const sortedBuses = result.sort((a, b) => a.arrivalMin - b.arrivalMin);
+
+  // 2. [필터링] 현재 위치 명칭(currentStationName)이 유실된 불완전 버스 데이터 전격 제거
+  const withLocationBuses = sortedBuses.filter((bus) => bus.currentStationName !== "");
+
+  // 3. [중복 제거] 가장 빨리 오는 버스 카드만 남기고 후속 중복 노선 차단
+  const uniqueBuses = withLocationBuses.filter(
+    (bus, index, self) => self.findIndex((b) => b.busNumber === bus.busNumber) === index
+  );
+
+  return {
+    stationName,
+    buses: uniqueBuses 
+  };
 }
 
+/**
+ * UI 뱃지용 혼잡도 라벨/컬러 매핑 헬퍼 함수들
+ */
 export function getCongestionLabel(c: BusCongetion): string {
   return ({ 3: "여유", 4: "보통", 5: "혼잡" } as Record<number, string>)[c] ?? "여유";
 }
