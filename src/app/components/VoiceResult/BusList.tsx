@@ -8,7 +8,7 @@ export function BusList({ buses, selectedId, onBusClick }: {
 }) {
     return (
         // 전체 너비의 30%를 차지하며, 초과 시 스크롤 구현
-        <div className="w-[30%] border-r border-white/10 overflow-y-auto custom-scrollbar bg-black/5">
+        <div className="w-[30%] h-full border-r border-black overflow-y-auto custom-scrollbar bg-blue shrink-0">
             {buses.map((bus) => {
                 // 현재 이 버스가 선택된 상태인지 확인
                 const isSelected = selectedId === bus.id;
@@ -16,8 +16,10 @@ export function BusList({ buses, selectedId, onBusClick }: {
                     <button
                         key={bus.id}
                         onClick={() => onBusClick(bus)}
-                        // 선택된 버스는 노란색 배경에 파란색 글자로 강조합니다.
-                        className={`w-full flex flex-col items-center justify-center py-8 px-4 border-b border-white/5 transition-all ${isSelected ? "bg-yellow-400 text-blue-900" : "text-white"}`}>
+                        // 선택된 버스는 노란색 배경에 검은 글자, 미선택된 버스는 흰색 배경에 검은 글자
+                        className={`w-full flex flex-col items-center justify-center py-8 px-4 border-b border-black transition-all ${
+                            isSelected ? "bg-yellow-400 text-black" : "bg-white text-black"
+                        }`} >
                         {/* 버스 번호 */}
                         <span className="text-5xl font-black font-mono mb-2">{bus.busNumber}</span>
                         <div className="flex items-center gap-1">
