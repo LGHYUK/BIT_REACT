@@ -1,6 +1,6 @@
 // VoiceResult 결과 화면 메인 컨트롤러 (전체 레이아웃 정의)
 
-import { MapPin, Mic, Home, Volume2 } from "lucide-react"; // Volume2 아이콘 추가
+import { MapPin, Mic, Home, Map, FileText } from "lucide-react"; // 💡 Map, FileText 아이콘 추가
 import { BusList } from "./Buslist";
 import { RouteDetailOverlay } from "./RouteDetail";
 import { BusOption } from "../../../types/bus";
@@ -19,40 +19,17 @@ export function VoiceResult({
     onReset: () => void;
     onGoHome: () => void;
 }) {
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
-    
-    // 실시간 백엔드 데이터([/api/process])와 사용자의 클릭 이벤트를 원형 그대로 연결하는 로컬 상태창고를 개설합니다.
+    // 텍스트 모드, 지도 모드 토글 상태창고
+    const [viewMode, setViewMode] = useState<'text' | 'map'>('text');
     const [selectedBus, setSelectedBus] = useState<BusOption | null>(null);
 
-    // buses 데이터가 새로 들어오면 자동으로 첫 번째 추천 버스를 기본 선택 상태로 맞춥니다.
+    // buses 데이터가 새로 들어오면 자동으로 첫 번째 추천 버스를 기본 선택 상태로 세팅
     useEffect(() => {
         if (buses && buses.length > 0) {
             setSelectedBus(buses[0]);
         }
     }, [buses]);
 
-    // 컴포넌트가 마운트될 때 청크를 사용해 URL 생성
-    useEffect(() => {
-        if (audioChunks.current.length > 0) {
-            const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-            const url = URL.createObjectURL(audioBlob);
-            setAudioUrl(url);
-            console.log("VoiceResult에서 생성된 Audio URL:", url);
-        }
-    }, [audioChunks]);
-    
-    // 내 목소리 재생 함수
-    const playAudio = () => {
-        if (audioUrl) {
-            console.log("오디오 재생 시도:", audioUrl);
-            const audio = new Audio(audioUrl);
-            audio.play().catch(err => console.error("재생 실패:", err));
-        } else {
-            alert("재생할 오디오 데이터가 없습니다.");
-        }
-    };
-
-    // 버스 카드 클릭 핸들러 로직 유지
     const handleBusClick = (bus: BusOption) => {
         setSelectedBus(bus);
     };
@@ -68,15 +45,22 @@ export function VoiceResult({
                 
                 {/* 컨트롤 버튼 그룹 */}
                 <div className="flex gap-2">
-                    {/* 내 목소리 확인 버튼 (오디오가 있을 때만 표시) */}
-                    {audioUrl && (
-                        <button 
-                            onClick={playAudio} 
-                            className="flex flex-row items-center gap-1 px-3 py-1.5 bg-yellow-500/20 border border-yellow-300/30 rounded-lg text-yellow-100 font-bold text-sm hover:bg-yellow-500/30 transition-all"
-                        >
-                            <Volume2 className="w-4 h-4" /><span>내 목소리 듣기</span>
-                        </button>
-                    )}
+                    {/* 지도로 보기 및 텍스트로 보기 토글 버튼 */}
+                    <button 
+                        onClick={() => setViewMode(prev => prev === 'text' ? 'map' : 'text')} 
+                        className="flex flex-row items-center gap-1.5 px-4 py-1.5 bg-yellow-500/20 border border-yellow-300/30 rounded-lg text-yellow-100 font-bold text-sm hover:bg-yellow-500/30 transition-all shadow-sm"
+                    >
+                        {viewMode === 'text' ? (
+                            <>
+                                <Map className="w-4 h-4" /><span>지도로 보기</span>
+                            </>
+                        ) : (
+                            <>
+                                <FileText className="w-4 h-4" /><span>텍스트로 보기</span>
+                            </>
+                        )}
+                    </button>
+
                     {/* 처음으로 버튼 */}
                     <button onClick={onGoHome} className="flex flex-row items-center gap-1 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white font-bold text-sm hover:bg-white/20 transition-all">
                         <Home className="w-4 h-4" /><span>처음으로</span>
@@ -88,22 +72,21 @@ export function VoiceResult({
                 </div>
             </div>
 
-            {/* ── 메인 콘텐츠 영역 (좌우 분할 디자인 100% 원형 유지) ── */}
+            {/* ── 메인 콘텐츠 영역 (좌우 분할 디자인 100% 유지) ── */}
             <div className="flex-1 flex overflow-hidden">
                 {/* 왼쪽 30% 영역: 버스 번호 목록 */}
                 <BusList buses={buses} selectedId={selectedBus?.id} onBusClick={handleBusClick} />
                 
                 {/* 오른쪽 70% 영역: 상세 경로 (흰색 배경) */}
                 <div className="flex-1 bg-white relative">
-                    {/* 💡 [수정]: 하이재킹 훅을 배제하고 VoiceRecording에서 정밀 포맷팅을 마친 selectedBus 내부의 진짜 실시간 경로 데이터(routeDetail)를 다이렉트로 주입합니다. */}
                     {selectedBus && (selectedBus as any).routeDetail ? (
                         <RouteDetailOverlay 
                             route={(selectedBus as any).routeDetail} 
                             destination={destination} 
+                            viewMode={viewMode} // 헤더 버튼 클릭 상태를 우측 컴포넌트에 실시간 주입
                             onClose={() => { }} 
                         />
                     ) : (
-                        // 예외 케이스 및 초기 로딩 시 스피너 자동 방어선 구축 유지
                         <div className="flex-1 h-full flex items-center justify-center">
                             <div className="text-gray-400 font-bold">경로 데이터를 구성 중입니다...</div>
                         </div>
