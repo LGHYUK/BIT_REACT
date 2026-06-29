@@ -77,7 +77,13 @@ export function useVoiceRecorder() {
           routeDetail: {
             busNumber: routeData.bus_number || "추천",
             totalMin: routeData.total_time_min || 0,
-            steps: mappedSteps
+            steps: mappedSteps,
+            origin_x: routeData.origin_x,
+            origin_y: routeData.origin_y,
+            destination_x: routeData.destination_x,
+            destination_y: routeData.destination_y,
+            origin: routeData.origin,
+            route_segments: routeData.route_segments           
           }
         };
 

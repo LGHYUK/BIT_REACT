@@ -1,27 +1,114 @@
 import { RouteDetail } from "../../../types/bus";
-import { Map, MapMarker, Polyline } from "react-kakao-maps-sdk";
+import { Map, MapMarker, Polyline, CustomOverlayMap } from "react-kakao-maps-sdk";
 
 interface RouteDetailOverlayProps {
   // 경로 위경도 좌표 배열
-  route: RouteDetail & { mapCoordinates?: { lat: number; lng: number; name: string }[] };
+  route: RouteDetail & {
+    origin_x?: number | string;
+    origin_y?: number | string;
+    destination_x?: number | string;
+    destination_y?: number | string;
+    origin?: string;
+    route_segments?: {
+      vehicle_type?: string;
+      line?: string;
+      start_name?: string;
+      end_name?: string;
+      time_min?: number;
+      start_x?: number | string;
+      start_y?: number | string;
+      end_x?: number | string;
+      end_y?: number | string;
+    }[];
+  };
   destination: string;
   viewMode: 'text' | 'map';
   onClose: () => void;
 }
 
 const TRANSIT_THEMES = [
-  { bg: "bg-blue-600", border: "border-blue-400", text: "text-blue-600" },
-  { bg: "bg-purple-600", border: "border-purple-400", text: "text-purple-600" },
-  { bg: "bg-orange-500", border: "border-orange-400", text: "text-orange-500" },
-  { bg: "bg-emerald-600", border: "border-emerald-400", text: "text-emerald-600" },
-  { bg: "bg-pink-600", border: "border-pink-400", text: "text-pink-600" },
+  { bg: "bg-blue-600", border: "border-blue-400", text: "text-blue-600", hex: "#2563EB" },
+  { bg: "bg-purple-600", border: "border-purple-400", text: "text-purple-600", hex: "#7C3AED" },
+  { bg: "bg-orange-500", border: "border-orange-400", text: "text-orange-500", hex: "#F97316" },
+  { bg: "bg-emerald-600", border: "border-emerald-400", text: "text-emerald-600", hex: "#059669" },
+  { bg: "bg-pink-600", border: "border-pink-400", text: "text-pink-600", hex: "#DB2777" },
 ];
 
 export function RouteDetailOverlay({ route, destination, viewMode }: RouteDetailOverlayProps) {
   let transitColorIndex = 0;
 
-  // 백엔드 제공 실시간 좌표 배열 바인딩
-  const coordinates = route.mapCoordinates || [];
+  const mapLines: { path: { lat: number; lng: number }[]; color: string; busNumber?: string }[] = [];
+  const mapMarkers: { lat: number; lng: number; name: string }[] = [];
+
+  // [중간 좌표 계산기]: 버스 번호 텍스트를 띄우기 위한 픽셀 연산용 함수
+  const getMidpoint = (path: { lat: number; lng: number }[]) => {
+    if (path.length < 2) return path[0];
+    return {
+      lat: (path[0].lat + path[1].lat) / 2,
+      lng: (path[0].lng + path[1].lng) / 2,
+    };
+  };
+
+  // 1. 첫 번째 도보 구간
+  if (route.origin_y && route.origin_x && route.route_segments?.[0]?.start_y) {
+    mapLines.push({
+      path: [
+        { lat: Number(route.origin_y), lng: Number(route.origin_x) },
+        { lat: Number(route.route_segments[0].start_y), lng: Number(route.route_segments[0].start_x) }
+      ],
+      color: "#9CA3AF" // 회색 선
+    });
+    mapMarkers.push({ lat: Number(route.origin_y), lng: Number(route.origin_x), name: route.origin || "출발 정류장" });
+  }
+
+  // 2. 환승 구간별 정류장 좌표 추적 및 실시간 테마 컬러 매핑
+  if (route.route_segments && route.route_segments.length > 0) {
+    route.route_segments.forEach((seg: any, idx: number) => {
+      if (seg.start_y && seg.start_x && seg.end_y && seg.end_x) {
+        // 기존 텍스트 모드와 일치하는 색상 인덱스 추출
+        const currentTheme = TRANSIT_THEMES[idx % TRANSIT_THEMES.length];
+
+        // 버스 탑승 구역 노선 선 데이터 추가
+        mapLines.push({
+          path: [
+            { lat: Number(seg.start_y), lng: Number(seg.start_x) },
+            { lat: Number(seg.end_y), lng: Number(seg.end_x) }
+          ],
+          color: currentTheme.hex, // 해당 버스 고유 테마 컬러 부여
+          busNumber: seg.line || route.busNumber // 지도 위에 띄울 버스 번호 매핑
+        });
+
+        // 탑승 및 하차 정류장 마커 추가
+        mapMarkers.push({ lat: Number(seg.start_y), lng: Number(seg.start_x), name: seg.start_name || "탑승 정류장" });
+        mapMarkers.push({ lat: Number(seg.end_y), lng: Number(seg.end_x), name: seg.end_name || "하차 정류장" });
+
+        // 환승 도보 구간 연결 연산
+        const nextSeg = route.route_segments?.[idx + 1];
+        if (nextSeg && nextSeg.start_y) {
+          mapLines.push({
+            path: [
+              { lat: Number(seg.end_y), lng: Number(seg.end_x) },
+              { lat: Number(nextSeg.start_y), lng: Number(nextSeg.start_x) }
+            ],
+            color: "#9CA3AF"
+          });
+        }
+      }
+    });
+  }
+
+  // 3. 마지막 도보 구간
+  const lastSegment = route.route_segments?.[route.route_segments.length - 1];
+  if (lastSegment && lastSegment.end_y && route.destination_y) {
+    mapLines.push({
+      path: [
+        { lat: Number(lastSegment.end_y), lng: Number(lastSegment.end_x) },
+        { lat: Number(route.destination_y), lng: Number(route.destination_x) }
+      ],
+      color: "#9CA3AF"
+    });
+    mapMarkers.push({ lat: Number(route.destination_y), lng: Number(route.destination_x), name: destination || "목적지" });
+  }
 
   return (
     <div
@@ -65,27 +152,48 @@ export function RouteDetailOverlay({ route, destination, viewMode }: RouteDetail
       <div className="flex-1 overflow-y-auto px-8 pt-5 pb-6 custom-scrollbar-light bg-white flex flex-col">
         {viewMode === 'map' ? (
           // [지도 모드]
-          coordinates && coordinates.length > 0 && coordinates[0]?.lat ? (
-            <div className="flex-1 w-full h-full rounded-2xl overflow-hidden border border-gray-200 relative min-h-[350px] shadow-sm animate-in fade-in duration-300">
+          mapMarkers && mapMarkers.length > 0 && mapMarkers[0]?.lat ? (
+            <div className="w-full h-[520px] rounded-2xl overflow-hidden border border-gray-200 relative shadow-sm animate-in fade-in duration-300">
               <Map 
-                center={{ lat: coordinates[0].lat, lng: coordinates[0].lng }} 
-                style={{ width: "100%", height: "100%" }} 
+                center={{ lat: mapMarkers[0].lat, lng: mapMarkers[0].lng }} 
+                style={{ width: "100%", height: "520px" }} 
                 level={5}
               >
-                {coordinates.map((pos, index) => 
+                {/* 실시간 수집된 모든 정류장 마커 렌더링 */}
+                {mapMarkers.map((pos, index) => 
                   pos?.lat && pos?.lng ? (
                     <MapMarker 
-                      key={index} 
+                      key={`marker-${index}`} 
                       position={{ lat: pos.lat, lng: pos.lng }}
                     />
                   ) : null
                 )}
-                <Polyline
-                  path={coordinates.filter(pos => pos?.lat && pos?.lng).map((pos) => ({ lat: pos.lat, lng: pos.lng }))}
-                  strokeWeight={6}
-                  strokeColor="#2563EB"
-                  strokeOpacity={0.85}
-                />
+
+                {mapLines.map((line, index) => (
+                  <Polyline
+                    key={`line-${index}`}
+                    path={line.path}
+                    strokeWeight={6}
+                    strokeColor={line.color} // 회색 혹은 해당 링크 테마색 주입
+                    strokeOpacity={0.85}
+                  />
+                ))}
+
+                {mapLines.map((line, index) => {
+                  if (!line.busNumber) return null;
+                  const midpoint = getMidpoint(line.path);
+                  return (
+                    <CustomOverlayMap key={`overlay-${index}`} position={midpoint} yAnchor={1.5}>
+                      <div 
+                        className="text-white font-black px-3 py-1 rounded-xl text-sm shadow-xl border-2 border-white whitespace-nowrap flex items-center gap-1 animate-bounce"
+                        style={{ backgroundColor: line.color }}
+                      >
+                        <span>🚌</span>
+                        <span>{line.busNumber}</span>
+                      </div>
+                    </CustomOverlayMap>
+                  );
+                })}
               </Map>
             </div>
           ) : (
