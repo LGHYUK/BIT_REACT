@@ -14,7 +14,7 @@ export type VoiceStatus = "idle" | "listening" | "loading" | "result";
 export function VoiceAssistant() {
   // 훅에서 제공하는 로직들을 가져옵니다.
   // EC2 서버 API 통신 결과로 받아온 실제 목적지(destination)와 추천 버스 리스트(buses)를 훅에서 구조 분해 할당으로 추가 수집합니다.
-  const { status: hookStatus, transcript, audioChunks, destination: serverDestination, buses: serverBuses, startRecording, stopRecording } = useVoiceRecorder();
+  const { status: hookStatus, transcript, audioChunks, destination: serverDestination, buses: serverBuses, message, audioBase64, startRecording, stopRecording } = useVoiceRecorder();
   
   // 현재 상태, 인식된 텍스트, 목적지를 상태로 관리
   const [status, setStatus] = useState<VoiceStatus>("idle"); 
@@ -47,6 +47,8 @@ export function VoiceAssistant() {
         <VoiceResult 
           destination={serverDestination} //백엔드에서 Whisper AI 알고리즘으로 판별한 진짜 목적지를 바인딩
           buses={serverBuses}             //공공데이터와 연동하여 백엔드가 계산해준 최적의 추천 버스 배열 객체를 통째로 넘겨줍니다.
+          message={message}
+          audio_base64={audioBase64}
           audioChunks={audioChunks}
           onReset={handleReset} 
           onGoHome={handleGoHome} 
